@@ -234,6 +234,21 @@ void WaveIO::write()
 	fclose(_fp);
 }
 
+void WaveIO::print_metadata()
+{
+	std::cout << std::endl;
+	std::cout << "*************************************" << std::endl;
+	std::cout << "File Name ----------> " <<  _fname << std::endl;
+	std::cout << "Number of Channels ->	" << _num_channels << std::endl;
+	std::cout << "Sample Rate -------->	" << _sample_rate << std::endl;
+	std::cout << "Bit Depth ---------->	" << _bits_per_sample << std::endl;
+	std::cout << "Duration ----------->	" << _duration_sec << std::endl;
+	std::cout << "Number of Samples -->	" << _num_samples << std::endl;
+	std::cout << "Audio Format ------->	PCM" << std::endl;
+	std::cout << "*************************************" << std::endl;
+	std::cout << std::endl;
+}
+
 uint16_t* WaveIO::get_data()
 {
 	return _data_buffer;

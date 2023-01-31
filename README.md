@@ -13,7 +13,7 @@ make
 
 [ ] Add documentation
 
-[ ] Add ability to print wave header in WaveIO
+[X] Add ability to print wave header in WaveIO
 
 [ ] Add support for 24 and 32 bit depths in WaveIO 
 
