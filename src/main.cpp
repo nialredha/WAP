@@ -1,5 +1,4 @@
 /* Example use case for WaveIO and SoundSim 
-
 */ 
 
 #include <cmath>
@@ -41,13 +40,22 @@ void run(std::string data_dir)
 
 	wave.print_metadata();
     
-    /*
     // SDL Screen Test
-    SDL_Init(SDL_INIT_VIDEO);
+    SDL_Window* window = nullptr;
+    SDL_Surface* screen_surface = nullptr;
 
-    SDL_Window* screen = SDL_CreateWindow("Testing", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 480, 0);
-    SDL_Quit();
-    */
+    if (SDL_Init(SDL_INIT_VIDEO) < 0)
+    {
+        std::cerr << "Init Error: " << SDL_GetError() << std::endl;
+        exit(1);
+    }
+
+    window = SDL_CreateWindow("Testing", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 480, SDL_WINDOW_SHOWN);
+    screen_surface = SDL_GetWindowSurface(window);
+    // fill surface white
+    SDL_FillRect(screen_surface, nullptr, SDL_MapRGB(screen_surface->format, 0xFF, 0xFF, 0xFF));
+    // update the surface 
+    SDL_UpdateWindowSurface(window);
 
     // SDL Audio Test
     SDL_AudioSpec wavSpec;
@@ -58,6 +66,7 @@ void run(std::string data_dir)
     if (SDL_LoadWAV(output_fname.c_str(), &wavSpec, &wavBuffer, &wavLength) == nullptr)
     {
         std::cerr << "Could not open " << output_fname << std::endl;
+        exit(1);
     }
 
     SDL_AudioDeviceID deviceId = SDL_OpenAudioDevice(nullptr, 0, &wavSpec, nullptr, SDL_AUDIO_ALLOW_ANY_CHANGE);
@@ -79,11 +88,24 @@ void run(std::string data_dir)
 
     SDL_PauseAudioDevice(deviceId, 0);
 
-    SDL_Delay(3000);
+    bool quit = false;
+    SDL_Event event;
+    while(!quit)
+    {
+        SDL_WaitEvent(&event);
+        if(event.type == SDL_QUIT)
+        {
+            quit = true;
+        }
+    }
 
+    SDL_DestroyWindow(window);
     SDL_CloseAudioDevice(deviceId);
     SDL_FreeWAV(wavBuffer);
     SDL_Quit();
+
+
+
 }
 
 int main(int argc, char *argv[]) 

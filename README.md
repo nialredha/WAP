@@ -11,7 +11,7 @@
 2. Download `SDL2-devel-x.x.x-VC` from [here](https://github.com/libsdl-org/SDL/releases) to somewhere on your hardrive (e.g. C:\SDL2)
 3. Open `win_build.bat` in the base of this repo and change the SDL2 lib paths to match the location of SDL2 on your machine.
 3. run `set path=C:\SDL2\lib\x64;%path%` to add SDL2 dll to your path.
-5. run `set SDL_\AUDIODRIVER=dsound` or check [here](https://stackoverflow.com/questions/22960325/no-audio-with-sdl-c) for other options if that doesn't work.
+5. run `set SDL_AUDIODRIVER=dsound` or check [here](https://stackoverflow.com/questions/22960325/no-audio-with-sdl-c) for other options if that doesn't work.
 6. run `win_build.bat` to build
 
 **Linux (WSL Ubuntu):**
