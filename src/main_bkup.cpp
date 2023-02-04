@@ -2,6 +2,12 @@
 
 */ 
 
+#ifdef _WIN64
+    #include <SDL.h>
+#elif __linux__
+    #include <SDL2/SDL.h>
+#endif
+
 #include <cmath>
 #include <iostream>
 
@@ -44,6 +50,39 @@ int main(int argc, char *argv[])
 
 	wave.print_metadata();
 
+    // SDL Audio Test
+    SDL_AudioSpec wavSpec;
+    Uint32 wavLength;
+    Uint8* wavBuffer;
+
+    SDL_Init(SDL_INIT_AUDIO);
+    if (SDL_LoadWAV(output_fname.c_str(), &wavSpec, &wavBuffer, &wavLength) == nullptr)
+    {
+        std::cerr << "Could not open " << output_fname << std::endl;
+    }
+
+    SDL_AudioDeviceID deviceId = SDL_OpenAudioDevice(nullptr, 0, &wavSpec, nullptr, SDL_AUDIO_ALLOW_ANY_CHANGE);
+    if (deviceId == 0)
+    {
+        std::cerr << "Sound Device Error: " << SDL_GetError() << std::endl;
+        exit(1);
+    }
+
+    // play audio
+    int status = SDL_QueueAudio(deviceId, wavBuffer, wavLength);
+    if (status < 0)
+    {
+        std::cout << "Error Queueing Audio: " << SDL_GetError() << std::endl;
+        exit(1);
+    }
+
+    SDL_PauseAudioDevice(deviceId, 0);
+
+    SDL_Delay(3000);
+
+    SDL_CloseAudioDevice(deviceId);
+    SDL_FreeWAV(wavBuffer);
+    SDL_Quit();
 
 	return 0;
 }
