@@ -8,4 +8,4 @@ cd build/
 clang++ -c ../src/SoundSim.cpp ../src/WaveIO.cpp -I ../include
 ar cr ../lib/libsound.a SoundSim.o WaveIO.o
 
-clang++ ../src/main.cpp -lSound -lSDL2 -I ../include -L ../lib -o Audio
+clang++ ../src/main.cpp -lSound -lSDL2 -lSDL2_image -I ../include -L ../lib -o Audio
