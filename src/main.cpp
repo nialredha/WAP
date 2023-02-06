@@ -28,12 +28,14 @@ std::string read_input_fname(int argc, char* argv[])
     return data_dir;
 }
 
-void play_audio(std::string data_dir) 
+// SDL Audio Test
+SDL_AudioSpec wavSpec;
+Uint32 wavLength;
+Uint8* wavBuffer;
+SDL_AudioDeviceID deviceId; 
+
+void init_audio(std::string data_dir) 
 {
-    // SDL Audio Test
-    SDL_AudioSpec wavSpec;
-    Uint32 wavLength;
-    Uint8* wavBuffer;
 
 	std::string output_fname = data_dir + "/d7_test.wav";
 
@@ -44,7 +46,7 @@ void play_audio(std::string data_dir)
         exit(1);
     }
 
-    SDL_AudioDeviceID deviceId = SDL_OpenAudioDevice(nullptr, 0, &wavSpec, nullptr, SDL_AUDIO_ALLOW_ANY_CHANGE);
+    deviceId = SDL_OpenAudioDevice(nullptr, 0, &wavSpec, nullptr, SDL_AUDIO_ALLOW_ANY_CHANGE);
     if (deviceId == 0)
     {
         std::cerr << "Sound Device Error: " << SDL_GetError() << std::endl;
@@ -58,14 +60,19 @@ void play_audio(std::string data_dir)
         std::cout << "Error Queueing Audio: " << SDL_GetError() << std::endl;
         exit(1);
     }
-    std::cout << "Status = " << status << std::endl;
+}
 
-    SDL_PauseAudioDevice(deviceId, 0);
+void play_pause_audio(int flag)
+{
+    if(flag == 1) { SDL_PauseAudioDevice(deviceId, 0); }
 
+    else { SDL_PauseAudioDevice(deviceId, 1); }
+}
 
+void close_audio()
+{
     SDL_CloseAudioDevice(deviceId);
     SDL_FreeWAV(wavBuffer);
-
 }
 
 void read_write_wav(std::string data_dir)
@@ -153,16 +160,25 @@ void run_gui(std::string data_dir)
     }
     SDL_FreeSurface(surface);
 
+    init_audio(data_dir);
+
     bool quit = false;
     SDL_Event event;
     Mouse_Pos mouse;
     SDL_Rect dest;
+    int flag = 1;
     while(!quit)
     {
         SDL_WaitEvent(&event);
-        if(event.type == SDL_QUIT)
+        switch(event.type)
         {
-            quit = true;
+            case SDL_QUIT:
+                quit = true;
+                break; 
+            case SDL_MOUSEBUTTONDOWN:
+                play_pause_audio(flag);
+                flag *= -1;
+                break;
         }
 
         SDL_GetMouseState(&mouse.x, &mouse.y);
@@ -183,6 +199,7 @@ void run_gui(std::string data_dir)
     }
 
     SDL_DestroyWindow(window);
+    close_audio();
     SDL_Quit();
 }
 
