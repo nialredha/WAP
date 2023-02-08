@@ -17,7 +17,7 @@ class Sound_Sim
 
 	float* get_data();
 
-	uint32_t* get_data(int max_value);
+	uint16_t* get_data(int max_value);
 
   private:
 	int _num_frequencies;

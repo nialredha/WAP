@@ -25,3 +25,4 @@ Linux (WSL Ubuntu)
 
 1. Linux Audio doesn't work. Need to look into pulseaudio.
 2. Need to add error handling.
+3. WaveIO wites corrupt wav files from simulated data.

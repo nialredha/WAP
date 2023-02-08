@@ -52,12 +52,12 @@ float* Sound_Sim::get_data()
 	return _data;
 }
 
-uint32_t* Sound_Sim::get_data(int max_value) 
+uint16_t* Sound_Sim::get_data(int max_value) 
 { 
-	uint32_t* wav_data = (uint32_t*)malloc(sizeof(uint32_t) * _num_samples);
+	uint16_t* wav_data = (uint16_t*)malloc(sizeof(uint16_t) * _num_samples);
 	for(int n = 0; n < _num_samples; n++) 
 	{
-		wav_data[n] = (uint32_t)(_data[n] * max_value);
+		wav_data[n] = (uint16_t)(_data[n] * max_value);
 	}
 
 	return wav_data;

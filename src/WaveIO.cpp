@@ -9,6 +9,8 @@
 
 WaveIO::WaveIO(std::string fname) : _fname(fname)
 {
+    _data_buffer = nullptr;
+
 	parse();
 }
 
@@ -23,6 +25,7 @@ WaveIO::WaveIO(std::string fname, uint16_t num_channels,
 	_bytes_per_sample = _bits_per_sample / BITS_PER_BYTE;
 	_byte_rate = _sample_rate * _num_channels * _bytes_per_sample;
 	_block_align = num_channels * _bytes_per_sample;
+    _data_buffer = nullptr;
 }
 
 void WaveIO::parse()
@@ -257,6 +260,15 @@ uint16_t* WaveIO::get_data()
 void WaveIO::set_fname(std::string fname)
 {
 	_fname = fname;
+}
+
+void WaveIO::set_data(uint16_t* data)
+{
+    // int num_bytes = _num_samples * _bytes_per_sample;
+    // memset(_data_buffer, 0, num_bytes);
+    // memcpy(_data_buffer, data, num_bytes);
+
+    _data_buffer = data;
 }
 
 void WaveIO::fill_buffer(uint8_t *buffer, uint32_t value)

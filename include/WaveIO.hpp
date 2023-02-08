@@ -26,6 +26,7 @@ class WaveIO
 
 	// setters
 	void set_fname(std::string fname);
+    void set_data(uint16_t* data);
 
   private:
 	std::string _fname{};
