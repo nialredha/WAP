@@ -212,7 +212,7 @@ void read_write_wav(std::string data_dir)
 	frequencies[3] = 523.251;	// C  - Octave 5
 
 	int sample_rate = 44100;
-    int duration = 10;
+    int duration = 1;
 	int num_samples = sample_rate*duration;	
 
 	Sound_Sim harmonic(num_frequencies, frequencies, num_samples, sample_rate);
@@ -222,10 +222,15 @@ void read_write_wav(std::string data_dir)
     uint16_t* data = harmonic.get_data(max);
 
 	std::string fname = data_dir + "/d7.wav";
-	WaveIO wave(fname); // automatically parses the data
-                        //
+
+	// WaveIO wave(fname); // automatically parses the data
+    WaveIO wave(fname, 1, sample_rate, 16, duration);
+    wave.set_data(data);
+
 	wave.write();
-	wave.print_metadata();
+
+	// wave.print_metadata();
+    wave.read_out_loud();
 }
 
 int main(int argc, char *argv[]) 

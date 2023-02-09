@@ -26,6 +26,9 @@ WaveIO::WaveIO(std::string fname, uint16_t num_channels,
 	_byte_rate = _sample_rate * _num_channels * _bytes_per_sample;
 	_block_align = num_channels * _bytes_per_sample;
     _data_buffer = nullptr;
+
+    _data_chunk_size = _num_samples * _bytes_per_sample;
+    _chunk_size = _data_chunk_size + 36; // chunk size should always be data size + 36 bytes
 }
 
 void WaveIO::parse()
@@ -232,6 +235,7 @@ void WaveIO::write()
 		std::cerr << "No data available to write... "<< std::endl; 
 		exit(1);
 	} 
+
 	fwrite(_data_buffer, _bytes_per_sample, _num_samples, _fp);
 
 	fclose(_fp);
@@ -252,6 +256,87 @@ void WaveIO::print_metadata()
 	std::cout << std::endl;
 }
 
+void WaveIO::read_out_loud()
+{ 
+
+	uint8_t buffer[BUFFER_SIZE];
+
+    _fp = fopen(_fname.c_str(), "rb");
+    if (!_fp) 
+	{ 
+		std::cerr << "Couldn't open file..." << std::endl; 
+		exit(1);
+	}
+
+    std::cout << std::endl;
+
+	// RIFF Chunk Descriptor **************************************************
+
+	// Chunk ID (big endian)
+	fread(buffer, 1, 4, _fp);
+    std::cout << "********** Chunk ID = ";
+    for(int i = 0; i < BUFFER_SIZE; i++) { std::cout << buffer[i]; }
+    std::cout << std::endl;
+    
+	// Chunk Size (little endian) - size of file minus chunk id and chunk size 
+	fread(buffer, 1, 4, _fp);
+    std::cout << "******** Chunk Size = " << _chunk_size << " bytes" << std::endl;
+
+	// Format (big endian)
+	fread(buffer, 1, 4, _fp);
+    std::cout << "********* Format ID = ";
+    for(int i = 0; i < BUFFER_SIZE; i++) { std::cout << buffer[i]; }
+    std::cout << std::endl;
+
+	// FMT Sub-Chunk **********************************************************
+
+	// Sub-Chunk-1 ID (big endian)
+	fread(buffer, 1, 4, _fp);
+    std::cout << "**** Sub-Chunk 1 ID = ";
+    for(int i = 0; i < BUFFER_SIZE; i++) { std::cout << buffer[i]; }
+    std::cout << std::endl;
+
+	// Sub-Chunk-1 Size (little endian)
+	fread(buffer, 1, 4, _fp);
+	std::cout << "**** FMT Chunk Size = " << _fmt_chunk_size << " bytes" << std::endl;
+	
+	// Audio Format and Number of Channels (little endian)
+	fread(buffer, 1, 4, _fp);
+	std::cout << "****** Audio Format = " << _audio_format << std::endl;
+	std::cout << "****** Num Channels = " << _num_channels << std::endl;
+
+	// Sample Rate (little endian)
+	fread(buffer, 1, 4, _fp);
+	std::cout << "******* Sample Rate = " << _sample_rate << " Hz" << std::endl;
+
+	// Byte Rate (little endian) = sample_rate * num_channels * bytes_per_sample
+	fread(buffer, 1, 4, _fp);
+	std::cout << "********* Byte Rate = " << _byte_rate << std::endl;
+
+	// Block Align (num_channels * bytes_per_sample) and Bits Per Sample (little endian)
+	fread(buffer, 1, 4, _fp);
+	std::cout << "******* Block Align = " << _block_align << std::endl;
+	std::cout << "*** Bits Per Sample = " << _bits_per_sample << std::endl;
+
+	// Data Sub-Chunk *********************************************************
+
+	// Sub-Chunk-2 ID (big endian)
+	fread(buffer, 1, 4, _fp);
+    std::cout << "**** Sub-Chunk-2 ID = ";
+    for(int i = 0; i < BUFFER_SIZE; i++) { std::cout << buffer[i]; }
+    std::cout << std::endl;
+
+	// Sub-Chunk-2 Size (little endian)
+	fread(buffer, 1, 4, _fp);
+	std::cout << "*** Data Chunk Size = " << _data_chunk_size << " bytes" << std::endl;
+
+	// Data
+    std::cout << "******* Num Samples = " << _num_samples << std::endl;
+    std::cout << "**** Audio Duration = " << _duration_sec << " seconds" << std::endl;
+
+	fclose(_fp);
+}
+
 uint16_t* WaveIO::get_data()
 {
 	return _data_buffer;
@@ -265,8 +350,8 @@ void WaveIO::set_fname(std::string fname)
 void WaveIO::set_data(uint16_t* data)
 {
     // int num_bytes = _num_samples * _bytes_per_sample;
-    // memset(_data_buffer, 0, num_bytes);
-    // memcpy(_data_buffer, data, num_bytes);
+    // memset(_data_buffer, 0, _num_samples);
+    // memcpy(_data_buffer, data, _num_samples);
 
     _data_buffer = data;
 }

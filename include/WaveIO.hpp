@@ -20,6 +20,7 @@ class WaveIO
 	void parse();
 	void write();
 	void print_metadata();
+    void read_out_loud();
 
 	// getters
 	uint16_t* get_data();
@@ -33,7 +34,7 @@ class WaveIO
 	FILE* _fp{};
 
 	uint32_t _chunk_size{};
-	uint32_t _fmt_chunk_size{};
+	uint32_t _fmt_chunk_size{16}; // fmt chunk size should always be 16 bytes
 	uint16_t _audio_format{PCM}; 
 	uint16_t _num_channels{};
 	uint32_t _sample_rate{};
