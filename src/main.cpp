@@ -15,6 +15,9 @@
     #include <SDL_image.h>
 #endif
 
+#define SCREEN_WIDTH (720)
+#define SCREEN_HEIGHT (576)
+
 // TODO: get rid of globals
 SDL_Window* window = nullptr;
 SDL_Renderer* renderer = nullptr;
@@ -28,6 +31,9 @@ SDL_AudioDeviceID device_id;
 
 static Uint8* audio_pos;
 static Uint32 audio_len;
+
+SDL_Rect play_rect; 
+SDL_Rect pause_rect; 
 
 typedef struct {
     int x, y; 
@@ -49,29 +55,29 @@ void audio_callback(void* userdata, Uint8* stream, int len)
     audio_pos += len;
     audio_len -= len;
 
+    /*
     if(audio_len == 0)
     {
         audio_pos = wav_buffer;
         audio_len = wav_length;
     }
+    */
 }
 
-void play_pause_audio(bool play)
+void play_audio(bool play)
 {
     if(play) { SDL_PauseAudioDevice(device_id, 0); }
 
     else { SDL_PauseAudioDevice(device_id, 1); }
 }
 
-void init_audio(std::string data_dir) 
+void init_audio(std::string wav_path) 
 {
 
-	std::string output_fname = data_dir + "/d7.wav";
-
     SDL_Init(SDL_INIT_AUDIO);
-    if (SDL_LoadWAV(output_fname.c_str(), &wav_spec, &wav_buffer, &wav_length) == nullptr)
+    if (SDL_LoadWAV(wav_path.c_str(), &wav_spec, &wav_buffer, &wav_length) == nullptr)
     {
-        std::cerr << "Could not open " << output_fname << std::endl;
+        std::cerr << "Could not open " << wav_path << std::endl;
         exit(1);
     }
 
@@ -86,10 +92,9 @@ void init_audio(std::string data_dir)
         std::cerr << "Sound Device Error: " << SDL_GetError() << std::endl;
         exit(1);
     }
-    else { std::cout << "Device ID = " << device_id << std::endl; }
 }
 
-void init_graphics(std::string data_dir)
+void init_graphics()
 {
     // INITIALIZATION
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
@@ -98,7 +103,8 @@ void init_graphics(std::string data_dir)
         exit(1);
     }
 
-    window = SDL_CreateWindow("Testing", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 480, SDL_WINDOW_SHOWN);
+    window = SDL_CreateWindow("WAVE Media Player", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 
+                                SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
     if(window == nullptr)
     {
         std::cerr << "Create Window ERROR: " << SDL_GetError() << std::endl;
@@ -112,28 +118,12 @@ void init_graphics(std::string data_dir)
         exit(1);
     }
 
-    SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    IMG_Init(IMG_INIT_PNG);
+    // clear the screen to dark gray
+    SDL_SetRenderDrawColor(renderer, 37, 37, 38, 255);
+    SDL_RenderClear(renderer);
 
-    // LOAD TEXTURE
-    std::string crosshair_path = data_dir + "/cursor.png";
+    SDL_ShowCursor(SDL_ENABLE);
 
-    surface = IMG_Load(crosshair_path.c_str());
-    if(surface == nullptr)
-    {
-        std::cerr << "IMG Load ERROR: " << IMG_GetError() << std::endl;
-        exit(1);
-    }
-    texture = SDL_CreateTextureFromSurface(renderer, surface);
-    
-    SDL_ShowCursor(0);
-
-    if(texture == nullptr)
-    {
-        std::cerr << "Create Texture From Surface ERROR: " << SDL_GetError() << std::endl;
-        exit(1);
-    }
-    SDL_FreeSurface(surface);
 }
 
 void close_app()
@@ -144,44 +134,115 @@ void close_app()
     SDL_Quit();
 }
 
-void run_app(std::string data_dir)
+bool is_on_play(const Mouse_Pos &mouse)
 {
-    init_graphics(data_dir);
-    init_audio(data_dir);
+    if (mouse.x > play_rect.x && mouse.x < play_rect.x + play_rect.w)
+    {
+        if (mouse.y > play_rect.y && mouse.y < play_rect.y + play_rect.h) 
+        { 
+            return true; 
+        }
+    }
+    return false;
+}
+
+void draw_play_button(const Mouse_Pos &mouse)
+{
+    play_rect.w = SCREEN_WIDTH / 8;  // 90
+    play_rect.h = SCREEN_HEIGHT / 8; // 72
+    play_rect.x = 260;
+    play_rect.y = 216;
+
+    int offset = 20;
+    int tri_height = play_rect.w - offset;
+    int tri_base = play_rect.h - offset;
+
+    if (is_on_play(mouse))
+    {
+        SDL_SetRenderDrawColor(renderer, 139, 0, 0, 255); 
+        SDL_RenderFillRect(renderer, &play_rect);
+    }
+
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); 
+    SDL_RenderDrawRect(renderer, &play_rect);
+    SDL_RenderDrawLine(renderer, play_rect.x + offset, play_rect.y + tri_base, 
+                        play_rect.x + offset, play_rect.y + offset);
+    SDL_RenderDrawLine(renderer, play_rect.x + offset, play_rect.y + offset, 
+                        play_rect.x + tri_height, play_rect.y + (play_rect.h/2));
+    SDL_RenderDrawLine(renderer, play_rect.x + tri_height, play_rect.y + (play_rect.h/2), 
+                        play_rect.x + offset, play_rect.y + tri_base);
+}
+
+bool is_on_pause(const Mouse_Pos &mouse)
+{
+    if (mouse.x > pause_rect.x && mouse.x < pause_rect.x + pause_rect.w)
+    {
+        if (mouse.y > play_rect.y && mouse.y < pause_rect.y + pause_rect.h) 
+        { 
+            return true; 
+        }
+    }
+    return false;
+}
+
+void draw_pause_button(const Mouse_Pos &mouse)
+{
+    pause_rect.w = SCREEN_WIDTH / 8; 
+    pause_rect.h = SCREEN_HEIGHT / 8;
+    pause_rect.x = 270 + pause_rect.w;
+    pause_rect.y = 216;
+
+    int x_offset = 20;
+    int y_offset = 30;
+    int line_len = pause_rect.w - x_offset;
+
+    if (is_on_pause(mouse))
+    {
+        SDL_SetRenderDrawColor(renderer, 139, 0, 0, 255); 
+        SDL_RenderFillRect(renderer, &pause_rect);
+    }
+
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); 
+    SDL_RenderDrawRect(renderer, &pause_rect);
+    SDL_RenderDrawLine(renderer, pause_rect.x + x_offset, pause_rect.y + y_offset, 
+                        pause_rect.x + line_len, pause_rect.y + y_offset);
+    SDL_RenderDrawLine(renderer, pause_rect.x + x_offset, pause_rect.y + pause_rect.h - y_offset, 
+                        pause_rect.x + line_len, pause_rect.y + pause_rect.h - y_offset);
+}
+
+void run_app(std::string wav_path)
+{
+    init_graphics();
+    init_audio(wav_path);
 
     bool quit = false;
-    bool play = true;
     Mouse_Pos mouse;
-    SDL_Rect dest;
     SDL_Event event;
 
     while(!quit)
     {
-        SDL_WaitEvent(&event);
-        switch(event.type)
-        {
-            case SDL_QUIT:
-                quit = true;
-                break; 
-            case SDL_MOUSEBUTTONDOWN:
-                play_pause_audio(play);
-                play = !play;
-                break;
-        }
+        SDL_SetRenderDrawColor(renderer, 37, 37, 38, 255); 
+        SDL_RenderClear(renderer);
 
         SDL_GetMouseState(&mouse.x, &mouse.y);
-        dest.x = mouse.x;
-        dest.y = mouse.y;
 
-        SDL_QueryTexture(texture, nullptr, nullptr, &dest.w, &dest.h); 
-        dest.x -= dest.w / 2;
-        dest.y -= dest.h / 2;
+        while(SDL_PollEvent(&event))
+        {
+            switch(event.type)
+            {
+                case SDL_QUIT:
+                    quit = true;
+                    break; 
+                case SDL_MOUSEBUTTONDOWN:
+                    if(is_on_play(mouse)) { play_audio(true); }
+                    else if(is_on_pause(mouse)) { play_audio(false); }
+                    break;
+            }
+        }
 
-        // clear screen
-        SDL_RenderClear(renderer);
-        // render texture to screen
-        SDL_RenderCopy(renderer, texture, nullptr, &dest); 
-        // update screren 
+        draw_play_button(mouse);
+        draw_pause_button(mouse);
+
         SDL_RenderPresent(renderer);
     }
 
@@ -190,18 +251,18 @@ void run_app(std::string data_dir)
 
 std::string read_input_fname(int argc, char* argv[])
 {
-    std::string data_dir{};
+    std::string wav_path{};
 	if (argc < 2)
 	{
 		std::cerr << "Please provide a path to the Data directory!" << std::endl;
 		exit(1);
 	} 
-	else { data_dir = argv[1]; }
+	else { wav_path = argv[1]; }
 
-    return data_dir;
+    return wav_path;
 }
 
-void read_write_wav(std::string data_dir)
+void write_wav(std::string wav_path)
 {
     int num_frequencies = 4;
 	float* frequencies = (float*)malloc(sizeof(float) * num_frequencies);
@@ -212,7 +273,7 @@ void read_write_wav(std::string data_dir)
 	frequencies[3] = 523.251;	// C  - Octave 5
 
 	int sample_rate = 44100;
-    int duration = 1;
+    int duration = 10;
 	int num_samples = sample_rate*duration;	
 
 	Sound_Sim harmonic(num_frequencies, frequencies, num_samples, sample_rate);
@@ -221,23 +282,18 @@ void read_write_wav(std::string data_dir)
     int max = 32767;
     uint16_t* data = harmonic.get_data(max);
 
-	std::string fname = data_dir + "/d7.wav";
-
-	// WaveIO wave(fname); // automatically parses the data
-    WaveIO wave(fname, 1, sample_rate, 16, duration);
+    WaveIO wave(wav_path, 1, sample_rate, 16, duration);
     wave.set_data(data);
 
 	wave.write();
-
-	// wave.print_metadata();
-    wave.read_out_loud();
 }
 
 int main(int argc, char *argv[]) 
 {
-    std::string data_dir = read_input_fname(argc, argv);
-    read_write_wav(data_dir);
-    run_app(data_dir);
+    std::string wav_path = read_input_fname(argc, argv);
+    // write_wav(wav_path);
+   
+    run_app(wav_path);
 
 	return 0;
 }
