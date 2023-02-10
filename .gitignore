@@ -3,3 +3,4 @@ misc/
 lib/
 build/
 *.obj
+win_run.bat
