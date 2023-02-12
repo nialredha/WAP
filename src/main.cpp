@@ -20,6 +20,7 @@
 #define SCREEN_WIDTH (720)
 #define SCREEN_HEIGHT (576)
 #define TEXT_DISPLAY_BUFFER (5)
+#define MAX_LENGTH (3)
 
 enum class State 
 {
@@ -50,14 +51,17 @@ SDL_Window* WINDOW = nullptr;
 SDL_Renderer* RENDERER = nullptr;
 SDL_Surface* SURFACE = nullptr;
 SDL_Texture* TEXTURE = nullptr;
-TTF_Font* FONT = nullptr;
+TTF_Font* LARGE_FONT = nullptr;
+TTF_Font* SMALL_FONT = nullptr;
 
+SDL_Color WHITE = {255, 255, 255};
+
+SDL_AudioDeviceID DEVICE_ID; 
 SDL_AudioSpec WAV_SPEC;
 Uint32 WAV_LENGTH;
-Uint8* WAV_BUFFER;
-SDL_AudioDeviceID DEVICE_ID; 
-Uint8* AUDIO_POS;
 Uint32 AUDIO_LEN;
+Uint8* WAV_BUFFER;
+Uint8* AUDIO_POS;
 
 std::string WAV_PATH;
 
@@ -65,7 +69,8 @@ SDL_Rect PLAY_RECT;
 SDL_Rect PAUSE_RECT; 
 SDL_Rect LOAD_RECT;
 SDL_Rect TYPE_RECT;
-SDL_Rect TIME_RECT;
+SDL_Rect TIME_BAR_RECT;
+SDL_Rect FILLED_TIME_BAR_RECT;
 
 Mouse_Pos MOUSE;
 
@@ -73,12 +78,18 @@ State APP_STATE;
 
 void close_app()
 {
-    SDL_DestroyWindow(WINDOW);
-    SDL_FreeSurface(SURFACE);
     SDL_DestroyTexture(TEXTURE);
+    SDL_FreeSurface(SURFACE);
     SDL_DestroyRenderer(RENDERER);
+    SDL_DestroyWindow(WINDOW);
+
+    TTF_CloseFont(LARGE_FONT);
+    TTF_CloseFont(SMALL_FONT);
+
     SDL_CloseAudioDevice(DEVICE_ID);
     SDL_FreeWAV(WAV_BUFFER);
+
+    TTF_Quit();
     SDL_Quit();
 }
 
@@ -94,24 +105,54 @@ bool is_on_button(const SDL_Rect &rect)
     return false;
 }
 
-float sample_num_to_time()
+float get_current_time()
 {
-   int sample_num = ((AUDIO_POS - WAV_BUFFER));
-   return 1.0 / WAV_SPEC.freq * (float)(sample_num / 2);
+    SDL_LockAudioDevice(DEVICE_ID);
+
+    int bytes_per_sample = (int)SDL_AUDIO_BITSIZE(WAV_SPEC.format) / 8;
+    float samples_per_byte = 0;
+    if (bytes_per_sample != 0)
+    { 
+        samples_per_byte = 1.0 / (float)bytes_per_sample;
+    }
+    float sample_num = ((AUDIO_POS - WAV_BUFFER) * samples_per_byte) / WAV_SPEC.channels; // bytes
+
+    float current_time = 0.0;
+    if (WAV_SPEC.freq != 0)
+    {
+        current_time = 1.0 / (float)WAV_SPEC.freq * sample_num;
+    }
+    
+    SDL_UnlockAudioDevice(DEVICE_ID);
+
+    return current_time;
 }
 
-void draw_time_bar()
+float get_duration()
 {
-    TIME_RECT.w = 180;
-    TIME_RECT.h = 40;
-    TIME_RECT.x = 260;
-    TIME_RECT.y = 290;
+    int bytes_per_sample = (int)SDL_AUDIO_BITSIZE(WAV_SPEC.format) / 8;
+    float samples_per_byte = 0;
+    if (bytes_per_sample != 0)
+    { 
+        samples_per_byte = 1.0 / (float)bytes_per_sample;
+    }
+    float num_samples = (WAV_LENGTH * samples_per_byte) / WAV_SPEC.channels; // bytes
+                                                                                          //
+    float duration = 0.0;
+    if (WAV_SPEC.freq != 0)
+    {
+        duration = 1.0 / (float)WAV_SPEC.freq * (float)num_samples;
+    }
 
-    SDL_Color color = {255, 255, 255};
-    float audio_time = sample_num_to_time();
+    return duration;
+}
 
-    std::string time = std::to_string(audio_time); 
-    SURFACE = TTF_RenderText_Solid(FONT, time.c_str(), color);
+void draw_current_time()
+{
+    float audio_time = get_current_time();
+
+    std::string time = std::to_string(audio_time).substr(0, 5); 
+    SURFACE = TTF_RenderText_Solid(SMALL_FONT, time.c_str(), WHITE);
 
     SDL_Rect text_rect;
     if(SURFACE != nullptr) 
@@ -125,12 +166,62 @@ void draw_time_bar()
         text_rect.h = 0;
     }
     
-    text_rect.x = TIME_RECT.x + TEXT_DISPLAY_BUFFER;
-    text_rect.y = TIME_RECT.y + TEXT_DISPLAY_BUFFER;
+    text_rect.x = PLAY_RECT.x;
+    text_rect.y = TIME_BAR_RECT.y + TIME_BAR_RECT.h;
 
     TEXTURE = SDL_CreateTextureFromSurface(RENDERER, SURFACE);
     SDL_FreeSurface(SURFACE);
     SDL_RenderCopy(RENDERER, TEXTURE, NULL, &text_rect);
+    SDL_DestroyTexture(TEXTURE);
+}
+
+void draw_total_time()
+{
+    float duration = get_duration();
+    std::string time = std::to_string(duration).substr(0, 5);
+    SURFACE = TTF_RenderText_Solid(SMALL_FONT, time.c_str(), WHITE);
+
+    SDL_Rect text_rect;
+    if(SURFACE != nullptr) 
+    {
+        text_rect.w = SURFACE->w;
+        text_rect.h = SURFACE->h;
+    }
+    else 
+    {
+        text_rect.w = 0;
+        text_rect.h = 0;
+    }
+    
+    text_rect.x = PAUSE_RECT.x + PAUSE_RECT.w - text_rect.w;
+    text_rect.y = TIME_BAR_RECT.y + TIME_BAR_RECT.h;
+
+    TEXTURE = SDL_CreateTextureFromSurface(RENDERER, SURFACE);
+    SDL_FreeSurface(SURFACE);
+    SDL_RenderCopy(RENDERER, TEXTURE, NULL, &text_rect);
+    SDL_DestroyTexture(TEXTURE);
+
+}
+
+void draw_time_bar()
+{
+    TIME_BAR_RECT.w = PLAY_RECT.w + PAUSE_RECT.w + 10;
+    TIME_BAR_RECT.h = 10;
+    TIME_BAR_RECT.x = PLAY_RECT.x;
+    TIME_BAR_RECT.y = 300;
+
+    float percent_completed = get_current_time() / get_duration();
+
+    FILLED_TIME_BAR_RECT.w = (int)(percent_completed * TIME_BAR_RECT.w);
+    FILLED_TIME_BAR_RECT.h = TIME_BAR_RECT.h;
+    FILLED_TIME_BAR_RECT.x = TIME_BAR_RECT.x;
+    FILLED_TIME_BAR_RECT.y = TIME_BAR_RECT.y;
+
+    SDL_SetRenderDrawColor(RENDERER, 139, 0, 0, 255); 
+    SDL_RenderFillRect(RENDERER, &FILLED_TIME_BAR_RECT);
+    SDL_SetRenderDrawColor(RENDERER, 255, 255, 255, 255); 
+    SDL_RenderDrawRect(RENDERER, &TIME_BAR_RECT);
+
 }
 
 void draw_type_box()
@@ -160,8 +251,7 @@ void draw_load_button()
     SDL_SetRenderDrawColor(RENDERER, 255, 255, 255, 255); 
     SDL_RenderDrawRect(RENDERER, &LOAD_RECT);
 
-    SDL_Color color = {255, 255, 255};
-    SURFACE = TTF_RenderText_Solid(FONT, "LOAD", color);
+    SURFACE = TTF_RenderText_Solid(LARGE_FONT, "LOAD", WHITE);
 
     SDL_Rect text_rect;
     if(SURFACE != nullptr) 
@@ -181,6 +271,7 @@ void draw_load_button()
     TEXTURE = SDL_CreateTextureFromSurface(RENDERER, SURFACE);
     SDL_FreeSurface(SURFACE);
     SDL_RenderCopy(RENDERER, TEXTURE, NULL, &text_rect);
+    SDL_DestroyTexture(TEXTURE);
 }
 
 void draw_play_button()
@@ -216,7 +307,7 @@ void draw_pause_button()
 {
     PAUSE_RECT.w = SCREEN_WIDTH / 8; 
     PAUSE_RECT.h = SCREEN_HEIGHT / 8;
-    PAUSE_RECT.x = 270 + PAUSE_RECT.w;
+    PAUSE_RECT.x = PLAY_RECT.x + PLAY_RECT.w + 10; 
     PAUSE_RECT.y = 216;
 
     int x_offset = 20;
@@ -278,12 +369,20 @@ void audio_callback(void* userdata, Uint8* stream, int len)
     {
         AUDIO_POS = WAV_BUFFER;
         AUDIO_LEN = WAV_LENGTH;
+
         play_audio(false);
+        APP_STATE = State::SOUND_PAUSED;
     }
 }
 
 bool load_audio(std::string WAV_PATH)
 {
+    if (WAV_BUFFER != nullptr)
+    {
+        SDL_CloseAudioDevice(DEVICE_ID);
+        SDL_FreeWAV(WAV_BUFFER);
+    }
+
     if (SDL_LoadWAV(WAV_PATH.c_str(), &WAV_SPEC, &WAV_BUFFER, &WAV_LENGTH) == nullptr)
     {
         std::cerr << "LoadWAV Error: "<< SDL_GetError() << std::endl;
@@ -294,12 +393,15 @@ bool load_audio(std::string WAV_PATH)
     AUDIO_LEN = WAV_LENGTH;
 
     WAV_SPEC.callback = audio_callback;
+    WAV_SPEC.userdata = NULL;
+    WAV_SPEC.size = 1024;
     DEVICE_ID = SDL_OpenAudioDevice(nullptr, 0, &WAV_SPEC, nullptr, SDL_AUDIO_ALLOW_ANY_CHANGE);
     if (DEVICE_ID == 0)
     {
         std::cerr << "Sound Device Error: " << SDL_GetError() << std::endl;
         return false;
     }
+
     return true;
 }
 
@@ -319,7 +421,7 @@ void init_graphics()
         exit(1);
     }
 
-    RENDERER = SDL_CreateRenderer(WINDOW, -1, SDL_RENDERER_ACCELERATED);
+    RENDERER = SDL_CreateRenderer(WINDOW, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if(RENDERER == nullptr)
     {
         std::cerr << "Create Renderer ERROR: " << SDL_GetError() << std::endl;
@@ -332,8 +434,14 @@ void init_graphics()
         exit(1);
     }
 
-    FONT = TTF_OpenFont("../assets/Roboto-Regular.ttf", 24);
-    if(!FONT)
+    LARGE_FONT = TTF_OpenFont("../assets/Roboto-Regular.ttf", 24);
+    if(!LARGE_FONT)
+    {
+        std::cerr << "Error Loading Font: " << TTF_GetError() << std::endl;
+        exit(1);
+    }
+    SMALL_FONT = TTF_OpenFont("../assets/Roboto-Regular.ttf", 12);
+    if(!SMALL_FONT)
     {
         std::cerr << "Error Loading Font: " << TTF_GetError() << std::endl;
         exit(1);
@@ -414,7 +522,6 @@ void run_app()
 
     APP_STATE = State::IDLE;
     SDL_Event event;
-    SDL_Color color = {255, 255, 255};
 
     while(APP_STATE != State::QUITTING)
     {
@@ -430,9 +537,11 @@ void run_app()
         draw_pause_button();
         draw_load_button();
         draw_type_box();
+        draw_current_time();
+        draw_total_time();
         draw_time_bar();
 
-        SURFACE = TTF_RenderText_Solid(FONT, WAV_PATH.c_str(), color);
+        SURFACE = TTF_RenderText_Solid(LARGE_FONT, WAV_PATH.c_str(), WHITE);
         SDL_Rect text_rect;
         if(SURFACE != nullptr) 
         {
@@ -451,6 +560,7 @@ void run_app()
         TEXTURE = SDL_CreateTextureFromSurface(RENDERER, SURFACE);
         SDL_FreeSurface(SURFACE);
         SDL_RenderCopy(RENDERER, TEXTURE, NULL, &text_rect);
+        SDL_DestroyTexture(TEXTURE);
 
         SDL_RenderPresent(RENDERER);
 
