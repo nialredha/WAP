@@ -23,6 +23,5 @@ Linux (WSL Ubuntu)
 
 ## Known Bugs
 
-1. General undefined behavior when trying to load paths that don't exist
 1. Linux Audio doesn't work. Need to look into pulseaudio.
 1. Need to add error handling.

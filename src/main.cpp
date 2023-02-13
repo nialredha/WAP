@@ -26,12 +26,8 @@
 enum class State 
 {
     IDLE = 0,
-    LOADING_SOUND = 1,
-    PLAYING_SOUND = 2,
-    SOUND_PAUSED = 3,
-    TYPING = 4, 
-    QUITTING = 5, 
-    UNITIALIZED = 6,
+    PLAYING = 1,
+    TYPING = 2, 
 };
 
 enum class Mouse_Event
@@ -83,6 +79,7 @@ Uint8* AUDIO_POS;
 
 State APP_STATE;
 std::string WAVE_PATH;
+bool SOUND_LOADED;
 
 void close_app()
 {
@@ -241,7 +238,7 @@ void audio_callback(void* userdata, Uint8* stream, int len)
         AUDIO_LEN = WAVE_LENGTH;
 
         play_audio(false);
-        APP_STATE = State::SOUND_PAUSED;
+        APP_STATE = State::IDLE;
     }
 }
 
@@ -256,6 +253,7 @@ bool load_audio()
     if (SDL_LoadWAV(WAVE_PATH.c_str(), &WAVE_SPEC, &WAVE_BUFFER, &WAVE_LENGTH) == nullptr)
     {
         std::cerr << "LoadWAV Error: "<< SDL_GetError() << std::endl;
+        WAVE_BUFFER = nullptr;
         return false;
     }
 
@@ -263,7 +261,7 @@ bool load_audio()
     AUDIO_LEN = WAVE_LENGTH;
 
     WAVE_SPEC.callback = audio_callback;
-    WAVE_SPEC.userdata = NULL;
+    WAVE_SPEC.userdata = nullptr;
     WAVE_SPEC.size = 1024;
     DEVICE_ID = SDL_OpenAudioDevice(nullptr, 0, &WAVE_SPEC, nullptr, SDL_AUDIO_ALLOW_ANY_CHANGE);
     if (DEVICE_ID == 0)
@@ -327,32 +325,32 @@ void initialize()
 void process_mouse_event(const Mouse_Event* event)
 {
     // for safety, user can only pause sound when playing. 
-    if(APP_STATE == State::PLAYING_SOUND)
+    if(APP_STATE == State::PLAYING)
     { 
         if(*event == Mouse_Event::CLICKED_PAUSE)
         {
             play_audio(false);
-            APP_STATE = State::SOUND_PAUSED;
+            APP_STATE = State::IDLE;
         }
 
         return;
     }
 
-    assert(APP_STATE != State::PLAYING_SOUND);
+    assert(APP_STATE != State::PLAYING);
     switch(*event)
     {
         case Mouse_Event::CLICKED_LOAD:
-            if (WAVE_PATH == "") { return; }
-            load_audio();
-            APP_STATE = State::LOADING_SOUND;
+            if(load_audio()) { SOUND_LOADED = true; }
+            else { SOUND_LOADED = false; }
             break;
         case Mouse_Event::CLICKED_PLAY:
-            if (DEVICE_ID == 0) { return; }
-            play_audio(true);
-            APP_STATE = State::PLAYING_SOUND;
+            if (SOUND_LOADED)
+            { 
+                play_audio(true);
+                APP_STATE = State::PLAYING;
+            }
             break;
         case Mouse_Event::CLICKED_TEXT_BOX:
-            // WAVE_PATH.clear();
             APP_STATE = State::TYPING;
             break;
         case Mouse_Event::CLICKED_BACKGROUND:
@@ -365,11 +363,13 @@ int main(int argc, char *argv[])
 {
     initialize();
 
-	if (argc < 2)
+	if (argc > 2)
 	{
-		std::cerr << "did not provide a path to wave file." << std::endl;
+		std::cerr << "ERROR: too many arguments provided." << std::endl;
+        close_app();
+        exit(1);
 	} 
-	else 
+	else if (argc == 2)
     { 
         WAVE_PATH = argv[1]; 
         load_audio();
@@ -470,7 +470,8 @@ int main(int argc, char *argv[])
     wave_text_rect.x = text_box_rect.x + TEXT_DISPLAY_BUFFER;
     wave_text_rect.y = text_box_rect.y + TEXT_DISPLAY_BUFFER;
 
-    while(APP_STATE != State::QUITTING)
+    bool quit = false;
+    while(!quit)
     {
         SDL_SetRenderDrawColor(RENDERER, DARK_GRAY.r, DARK_GRAY.g, DARK_GRAY.b, DARK_GRAY.a); 
         SDL_RenderClear(RENDERER);
@@ -484,7 +485,7 @@ int main(int argc, char *argv[])
             switch(event.type)
             {
                 case SDL_QUIT:
-                    APP_STATE = State::QUITTING;            
+                    quit = true;
                     break; 
                 case SDL_MOUSEBUTTONDOWN:
                     if(on_button(&load_rect, &mouse)) { mouse_event = Mouse_Event::CLICKED_LOAD; }
@@ -538,16 +539,23 @@ int main(int argc, char *argv[])
         }
 
         // time bar
-        
-        total_time = get_total_time();
-        if(total_time != 0.0) { percent_completed = get_curr_time() / total_time; }
-        else { percent_completed = 0.0; }
+        if(SOUND_LOADED)
+        { 
+            total_time = get_total_time();
+            curr_time = get_curr_time();
+            percent_completed = get_curr_time() / total_time; 
+        }
+        else 
+        { 
+            curr_time = 0.0;
+            total_time = 0.0;
+            percent_completed = 0.0; 
+        }
         filled_time_bar_rect.w = (int)(percent_completed * time_bar_rect.w);
         draw_rect(&filled_time_bar_rect, nullptr, &DARK_RED, RENDERER);
         draw_rect(&time_bar_rect, &WHITE, nullptr, RENDERER);
 
         // current time
-        curr_time = get_curr_time();
         curr_time_str = std::to_string(curr_time).substr(0, SIGNIFICANT_DIGITS); 
         curr_time_texture = create_texture(&curr_time_text_rect, curr_time_str, WHITE, SMALL_FONT, RENDERER);
         if (curr_time_texture == nullptr)
