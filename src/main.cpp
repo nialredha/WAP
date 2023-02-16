@@ -30,13 +30,14 @@ enum class State
     TYPING = 2, 
 };
 
-enum class Mouse_Event
+enum class Mouse_Signal
 {
     CLICKED_LOAD = 0,
     CLICKED_PLAY = 1, 
     CLICKED_PAUSE = 2,
     CLICKED_TEXT_BOX = 3,
     CLICKED_BACKGROUND = 4,
+    CLICKED_TIME_MARKER = 5,
 };
 
 typedef struct 
@@ -80,6 +81,7 @@ Uint8* AUDIO_POS;
 State APP_STATE;
 std::string WAVE_PATH;
 bool SOUND_LOADED;
+bool MARKER_SELECTED;
 
 void close_app()
 {
@@ -115,9 +117,16 @@ void draw_triangle(Triangle* tri, SDL_Renderer* rend)
     SDL_RenderDrawLine(rend, tri->p3.x, tri->p3.y, tri->p1.x, tri->p1.y);
 }
 
-void draw_button(SDL_Rect* rect, const Position* mouse, SDL_Color outline, SDL_Color fill, SDL_Renderer* rend)
+void draw_button(SDL_Rect* rect, const Position* mouse, 
+                    SDL_Color outline, SDL_Color fill, SDL_Color hover_fill, 
+                    SDL_Renderer* rend)
 {
     if (on_button(rect, mouse))
+    {
+        SDL_SetRenderDrawColor(rend, hover_fill.r, hover_fill.g, hover_fill.b, fill.a); 
+        SDL_RenderFillRect(rend, rect);
+    }
+    else
     {
         SDL_SetRenderDrawColor(rend, fill.r, fill.g, fill.b, fill.a); 
         SDL_RenderFillRect(rend, rect);
@@ -146,7 +155,7 @@ SDL_Texture* create_texture(SDL_Rect* rect, std::string text, SDL_Color color,
 {
     SDL_Surface* surface = TTF_RenderText_Solid(font, text.c_str(), color);
 
-    if(surface != nullptr) 
+    if (surface != nullptr) 
     {
         rect->w = surface->w;
         rect->h = surface->h;
@@ -163,10 +172,6 @@ SDL_Texture* create_texture(SDL_Rect* rect, std::string text, SDL_Color color,
     return texture;
 }
 
-void draw_text(SDL_Rect* rect, SDL_Renderer* rend) 
-{
-}
-
 float get_curr_time()
 {
     SDL_LockAudioDevice(DEVICE_ID);
@@ -177,7 +182,7 @@ float get_curr_time()
     { 
         samples_per_byte = 1.0 / (float)bytes_per_sample;
     }
-    float sample_num = ((AUDIO_POS - WAVE_BUFFER) * samples_per_byte) / WAVE_SPEC.channels; // bytes
+    float sample_num = ((AUDIO_POS - WAVE_BUFFER) * samples_per_byte) / WAVE_SPEC.channels; 
 
     float curr_time = 0.0;
     if (WAVE_SPEC.freq != 0)
@@ -190,6 +195,30 @@ float get_curr_time()
     return curr_time;
 }
 
+void update_audio_pos(float time)
+{
+    // AUDIO_POS = (curr_time * freq) * chan / samples_per_byte + WAVE_BUFFER
+
+    SDL_LockAudioDevice(DEVICE_ID);
+
+    int bytes_per_sample = (int)SDL_AUDIO_BITSIZE(WAVE_SPEC.format) / 8;
+    float samples_per_byte = 0;
+    if (bytes_per_sample != 0)
+    { 
+        samples_per_byte = 1.0 / (float)bytes_per_sample;
+    }
+
+    int sample_num = (int)(time * (float)WAVE_SPEC.freq);
+    int total_bytes = sample_num * WAVE_SPEC.channels * bytes_per_sample;
+
+    if (total_bytes > (int)WAVE_LENGTH) { total_bytes = (int)WAVE_LENGTH; }
+
+    AUDIO_POS = WAVE_BUFFER + total_bytes;
+    AUDIO_LEN = WAVE_LENGTH - total_bytes;
+
+    SDL_UnlockAudioDevice(DEVICE_ID);
+}
+
 float get_total_time()
 {
     int bytes_per_sample = (int)SDL_AUDIO_BITSIZE(WAVE_SPEC.format) / 8;
@@ -198,8 +227,8 @@ float get_total_time()
     { 
         samples_per_byte = 1.0 / (float)bytes_per_sample;
     }
-    float num_samples = (WAVE_LENGTH * samples_per_byte) / WAVE_SPEC.channels; // bytes
-                                                                                          //
+    float num_samples = (WAVE_LENGTH * samples_per_byte) / WAVE_SPEC.channels; 
+
     float total_time = 0.0;
     if (WAVE_SPEC.freq != 0)
     {
@@ -211,7 +240,7 @@ float get_total_time()
 
 void play_audio(bool play)
 {
-    if(play) { SDL_PauseAudioDevice(DEVICE_ID, 0); }
+    if (play) { SDL_PauseAudioDevice(DEVICE_ID, 0); }
 
     else { SDL_PauseAudioDevice(DEVICE_ID, 1); }
 }
@@ -220,19 +249,19 @@ void audio_callback(void* userdata, Uint8* stream, int len)
 {
     memset(stream, 0, len);
 
-    if(AUDIO_LEN == 0) { return; }
+    if (AUDIO_LEN == 0) { return; }
 
-    if(len > AUDIO_LEN) 
+    if (len > AUDIO_LEN) 
     { 
         len = AUDIO_LEN; 
     }
 
     memcpy(stream, AUDIO_POS, len);
-
+    
     AUDIO_POS += len;
     AUDIO_LEN -= len;
 
-    if(AUDIO_LEN == 0)
+    if (AUDIO_LEN == 0)
     {
         AUDIO_POS = WAVE_BUFFER;
         AUDIO_LEN = WAVE_LENGTH;
@@ -283,33 +312,33 @@ void initialize()
 
     WINDOW = SDL_CreateWindow("WAVE Media Player", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 
                                 SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
-    if(WINDOW == nullptr)
+    if (WINDOW == nullptr)
     {
         std::cerr << "Create Window ERROR: " << SDL_GetError() << std::endl;
         exit(1);
     }
 
     RENDERER = SDL_CreateRenderer(WINDOW, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if(RENDERER == nullptr)
+    if (RENDERER == nullptr)
     {
         std::cerr << "Create Renderer ERROR: " << SDL_GetError() << std::endl;
         exit(1);
     }
 
-    if(TTF_Init() < 0)
+    if (TTF_Init() < 0)
     {
         std::cerr << "Error Initializing TTF: " << TTF_GetError() << std::endl;
         exit(1);
     }
 
     LARGE_FONT = TTF_OpenFont("../assets/Roboto-Regular.ttf", 24);
-    if(!LARGE_FONT)
+    if (!LARGE_FONT)
     {
         std::cerr << "Error Loading Font: " << TTF_GetError() << std::endl;
         exit(1);
     }
     SMALL_FONT = TTF_OpenFont("../assets/Roboto-Regular.ttf", 12);
-    if(!SMALL_FONT)
+    if (!SMALL_FONT)
     {
         std::cerr << "Error Loading Font: " << TTF_GetError() << std::endl;
         exit(1);
@@ -322,12 +351,12 @@ void initialize()
     SDL_ShowCursor(SDL_ENABLE);
 }
 
-void process_mouse_event(const Mouse_Event* event)
+void process_mouse_event(const Mouse_Signal signal)
 {
     // for safety, user can only pause sound when playing. 
-    if(APP_STATE == State::PLAYING)
+    if (APP_STATE == State::PLAYING)
     { 
-        if(*event == Mouse_Event::CLICKED_PAUSE)
+        if (signal == Mouse_Signal::CLICKED_PAUSE)
         {
             play_audio(false);
             APP_STATE = State::IDLE;
@@ -337,23 +366,26 @@ void process_mouse_event(const Mouse_Event* event)
     }
 
     assert(APP_STATE != State::PLAYING);
-    switch(*event)
+    switch (signal)
     {
-        case Mouse_Event::CLICKED_LOAD:
-            if(load_audio()) { SOUND_LOADED = true; }
+        case Mouse_Signal::CLICKED_LOAD:
+            if (load_audio()) { SOUND_LOADED = true; }
             else { SOUND_LOADED = false; }
             break;
-        case Mouse_Event::CLICKED_PLAY:
+        case Mouse_Signal::CLICKED_PLAY:
             if (SOUND_LOADED)
             { 
                 play_audio(true);
                 APP_STATE = State::PLAYING;
             }
             break;
-        case Mouse_Event::CLICKED_TEXT_BOX:
+        case Mouse_Signal::CLICKED_TEXT_BOX:
             APP_STATE = State::TYPING;
             break;
-        case Mouse_Event::CLICKED_BACKGROUND:
+        case Mouse_Signal::CLICKED_TIME_MARKER:
+            MARKER_SELECTED = true;
+            break;
+        case Mouse_Signal::CLICKED_BACKGROUND:
             APP_STATE = State::IDLE;
             break;
     }
@@ -372,11 +404,14 @@ int main(int argc, char *argv[])
 	else if (argc == 2)
     { 
         WAVE_PATH = argv[1]; 
-        load_audio();
+        if (load_audio())
+        {
+            SOUND_LOADED = true;
+        }
     }
 
     APP_STATE = State::IDLE;
-    SDL_Event event;
+    SDL_Event sdl_event;
 
     SDL_Texture* load_texture = nullptr;
     SDL_Texture* curr_time_texture = nullptr;
@@ -384,6 +419,7 @@ int main(int argc, char *argv[])
     SDL_Texture* wave_texture = nullptr;
 
     Position mouse;
+    Mouse_Signal signal; 
 
     SDL_Rect play_rect; 
     play_rect.w = SCREEN_WIDTH / 8;
@@ -455,6 +491,12 @@ int main(int argc, char *argv[])
     filled_time_bar_rect.x = time_bar_rect.x;
     filled_time_bar_rect.y = time_bar_rect.y;
 
+    SDL_Rect time_marker_rect;
+    time_marker_rect.w = filled_time_bar_rect.h;
+    time_marker_rect.h = filled_time_bar_rect.h;
+    time_marker_rect.x = 0;
+    time_marker_rect.y = filled_time_bar_rect.y;
+
     SDL_Rect curr_time_text_rect;
     float curr_time;
     std::string curr_time_str;
@@ -471,7 +513,7 @@ int main(int argc, char *argv[])
     wave_text_rect.y = text_box_rect.y + TEXT_DISPLAY_BUFFER;
 
     bool quit = false;
-    while(!quit)
+    while (!quit)
     {
         SDL_SetRenderDrawColor(RENDERER, DARK_GRAY.r, DARK_GRAY.g, DARK_GRAY.b, DARK_GRAY.a); 
         SDL_RenderClear(RENDERER);
@@ -479,28 +521,31 @@ int main(int argc, char *argv[])
         SDL_GetMouseState(&mouse.x, &mouse.y);
         SDL_StartTextInput();
 
-        Mouse_Event mouse_event; 
-        if(SDL_PollEvent(&event)) 
+        if (SDL_PollEvent(&sdl_event)) 
         { 
-            switch(event.type)
+            switch (sdl_event.type)
             {
                 case SDL_QUIT:
                     quit = true;
                     break; 
                 case SDL_MOUSEBUTTONDOWN:
-                    if(on_button(&load_rect, &mouse)) { mouse_event = Mouse_Event::CLICKED_LOAD; }
-                    else if(on_button(&play_rect, &mouse)) { mouse_event = Mouse_Event::CLICKED_PLAY; }
-                    else if(on_button(&pause_rect, &mouse)) { mouse_event = Mouse_Event::CLICKED_PAUSE; }
-                    else if(on_button(&text_box_rect, &mouse)) { mouse_event = Mouse_Event::CLICKED_TEXT_BOX; }
-                    else { mouse_event = Mouse_Event::CLICKED_BACKGROUND; }
+                    if (on_button(&load_rect, &mouse)) { signal = Mouse_Signal::CLICKED_LOAD; }
+                    else if (on_button(&play_rect, &mouse)) { signal = Mouse_Signal::CLICKED_PLAY; }
+                    else if (on_button(&pause_rect, &mouse)) { signal = Mouse_Signal::CLICKED_PAUSE; }
+                    else if (on_button(&text_box_rect, &mouse)) { signal = Mouse_Signal::CLICKED_TEXT_BOX; }
+                    else if (on_button(&time_marker_rect, &mouse)) { signal = Mouse_Signal::CLICKED_TIME_MARKER; }
+                    else { signal = Mouse_Signal::CLICKED_BACKGROUND; }
 
-                    process_mouse_event(&mouse_event);
+                    process_mouse_event(signal);
+                    break;
+                case SDL_MOUSEBUTTONUP:
+                    if (MARKER_SELECTED) { MARKER_SELECTED = false; }
                     break;
                 case SDL_TEXTINPUT:
-                    if(APP_STATE == State::TYPING) { WAVE_PATH += event.text.text; }
+                    if (APP_STATE == State::TYPING) { WAVE_PATH += sdl_event.text.text; }
                     break;
                 case SDL_KEYDOWN:
-                    if(event.key.keysym.sym == SDLK_BACKSPACE) 
+                    if (sdl_event.key.keysym.sym == SDLK_BACKSPACE) 
                     { 
                         if (WAVE_PATH.length() > 0) { WAVE_PATH.pop_back(); }
                     }
@@ -509,16 +554,16 @@ int main(int argc, char *argv[])
         }
 
         // play button
-        draw_button(&play_rect, &mouse, WHITE, DARK_RED, RENDERER);
+        draw_button(&play_rect, &mouse, WHITE, DARK_GRAY, DARK_RED, RENDERER);
         draw_triangle(&play_tri, RENDERER);
 
         // pause button
-        draw_button(&pause_rect, &mouse, WHITE, DARK_RED, RENDERER);
+        draw_button(&pause_rect, &mouse, WHITE, DARK_GRAY, DARK_RED, RENDERER);
         SDL_RenderDrawLine(RENDERER, pause_top.p1.x, pause_top.p1.y, pause_top.p2.x, pause_top.p2.y);
         SDL_RenderDrawLine(RENDERER, pause_bot.p1.x, pause_bot.p1.y, pause_bot.p2.x, pause_bot.p2.y);
 
         // load button 
-        draw_button(&load_rect, &mouse, WHITE, DARK_RED, RENDERER);
+        draw_button(&load_rect, &mouse, WHITE, DARK_GRAY, DARK_RED, RENDERER);
         SDL_RenderCopy(RENDERER, load_texture, nullptr, &load_text_rect);
 
         // text box
@@ -538,12 +583,24 @@ int main(int argc, char *argv[])
             SDL_DestroyTexture(wave_texture);
         }
 
+        if (MARKER_SELECTED)
+        {
+            if (mouse.x > time_bar_rect.x && 
+                mouse.x < time_bar_rect.x + time_bar_rect.w)
+            {
+                float new_width = (float)(mouse.x - filled_time_bar_rect.x);
+                float percent_completed = new_width / time_bar_rect.w;
+                float new_time = percent_completed * total_time;
+                update_audio_pos(new_time);
+            } 
+        }
+
         // time bar
-        if(SOUND_LOADED)
+        if (SOUND_LOADED)
         { 
             total_time = get_total_time();
             curr_time = get_curr_time();
-            percent_completed = get_curr_time() / total_time; 
+            percent_completed = curr_time / total_time; 
         }
         else 
         { 
@@ -554,6 +611,10 @@ int main(int argc, char *argv[])
         filled_time_bar_rect.w = (int)(percent_completed * time_bar_rect.w);
         draw_rect(&filled_time_bar_rect, nullptr, &DARK_RED, RENDERER);
         draw_rect(&time_bar_rect, &WHITE, nullptr, RENDERER);
+
+        // current time marker
+        time_marker_rect.x = filled_time_bar_rect.x + filled_time_bar_rect.w - (time_marker_rect.w / 2);
+        draw_button(&time_marker_rect, &mouse, WHITE, DARK_GRAY, WHITE, RENDERER);
 
         // current time
         curr_time_str = std::to_string(curr_time).substr(0, SIGNIFICANT_DIGITS); 
@@ -579,7 +640,6 @@ int main(int argc, char *argv[])
         }
         SDL_RenderCopy(RENDERER, total_time_texture, nullptr, &total_time_text_rect);
         SDL_DestroyTexture(total_time_texture);
-
 
         SDL_RenderPresent(RENDERER);
     }
