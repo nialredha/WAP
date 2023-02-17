@@ -1,6 +1,7 @@
 data/
 misc/
-lib/
 build/
+notes/
+releases/
 *.obj
 win_run.bat

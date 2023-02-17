@@ -22,6 +22,7 @@
 #define MAX_LENGTH (3)
 #define SIGNIFICANT_DIGITS (5)
 #define BUTTON_GAP (10)
+#define MAX_VOLUME (128)
 
 enum class State 
 {
@@ -38,6 +39,7 @@ enum class Mouse_Signal
     CLICKED_TEXT_BOX = 3,
     CLICKED_BACKGROUND = 4,
     CLICKED_TIME_MARKER = 5,
+    CLICKED_VOLUME_MARKER = 6,
 };
 
 typedef struct 
@@ -80,8 +82,10 @@ Uint8* AUDIO_POS;
 
 State APP_STATE;
 std::string WAVE_PATH;
-bool SOUND_LOADED;
-bool MARKER_SELECTED;
+int  VOLUME;
+bool SOUND_LOADED = false;
+bool TIME_MARKER_SELECTED = false;
+bool VOLUME_MARKER_SELECTED = false;
 
 void close_app()
 {
@@ -96,6 +100,10 @@ void close_app()
 
     TTF_Quit();
     SDL_Quit();
+}
+
+void animate_cursor()
+{
 }
 
 bool on_button(const SDL_Rect* rect, const Position* mouse)
@@ -256,7 +264,8 @@ void audio_callback(void* userdata, Uint8* stream, int len)
         len = AUDIO_LEN; 
     }
 
-    memcpy(stream, AUDIO_POS, len);
+    SDL_MixAudioFormat(stream, AUDIO_POS, WAVE_SPEC.format, len, VOLUME);
+    // memcpy(stream, AUDIO_POS, len);
     
     AUDIO_POS += len;
     AUDIO_LEN -= len;
@@ -361,7 +370,10 @@ void process_mouse_event(const Mouse_Signal signal)
             play_audio(false);
             APP_STATE = State::IDLE;
         }
-
+        if (signal == Mouse_Signal::CLICKED_VOLUME_MARKER)
+        {
+            VOLUME_MARKER_SELECTED = true;
+        }
         return;
     }
 
@@ -383,7 +395,10 @@ void process_mouse_event(const Mouse_Signal signal)
             APP_STATE = State::TYPING;
             break;
         case Mouse_Signal::CLICKED_TIME_MARKER:
-            MARKER_SELECTED = true;
+            TIME_MARKER_SELECTED = true;
+            break;
+        case Mouse_Signal::CLICKED_VOLUME_MARKER:
+            VOLUME_MARKER_SELECTED = true;
             break;
         case Mouse_Signal::CLICKED_BACKGROUND:
             APP_STATE = State::IDLE;
@@ -410,6 +425,7 @@ int main(int argc, char *argv[])
         }
     }
 
+    VOLUME = 128;
     APP_STATE = State::IDLE;
     SDL_Event sdl_event;
 
@@ -453,7 +469,7 @@ int main(int argc, char *argv[])
     Line pause_bot;
     pause_bot.length = pause_top.length;
     pause_bot.p1.x = pause_rect.x + x_offset;
-    pause_bot.p1.y = pause_rect.y +pause_rect.h - y_offset;
+    pause_bot.p1.y = pause_rect.y + pause_rect.h - y_offset;
     pause_bot.p2.x = pause_rect.x + pause_bot.length;
     pause_bot.p2.y = pause_rect.y + pause_rect.h - y_offset;
 
@@ -479,11 +495,17 @@ int main(int argc, char *argv[])
     text_box_rect.x = load_rect.x + load_rect.w;
     text_box_rect.y = load_rect.y;
 
+    SDL_Rect wave_text_rect;
+    wave_text_rect.x = text_box_rect.x + TEXT_DISPLAY_BUFFER;
+    wave_text_rect.y = text_box_rect.y + TEXT_DISPLAY_BUFFER;
+
+    Line cursor;
+
     SDL_Rect time_bar_rect;
     time_bar_rect.w = play_rect.w + pause_rect.w + BUTTON_GAP;
     time_bar_rect.h = 10;
     time_bar_rect.x = play_rect.x;
-    time_bar_rect.y = play_rect.x + play_rect.h + BUTTON_GAP;
+    time_bar_rect.y = play_rect.y + play_rect.h + BUTTON_GAP;
     float percent_completed = 0.0; 
     SDL_Rect filled_time_bar_rect;
     filled_time_bar_rect.w = 0;
@@ -508,9 +530,23 @@ int main(int argc, char *argv[])
     SDL_Rect total_time_text_rect;
     total_time_text_rect.y = time_bar_rect.y + time_bar_rect.h;
 
-    SDL_Rect wave_text_rect;
-    wave_text_rect.x = text_box_rect.x + TEXT_DISPLAY_BUFFER;
-    wave_text_rect.y = text_box_rect.y + TEXT_DISPLAY_BUFFER;
+
+    SDL_Rect volume_rect;
+    volume_rect.x = pause_rect.x + pause_rect.w + BUTTON_GAP;
+    volume_rect.y = pause_rect.y;
+    volume_rect.w = time_bar_rect.h;
+    volume_rect.h = pause_rect.h + BUTTON_GAP + time_bar_rect.h;
+    SDL_Rect filled_volume_rect;
+    filled_volume_rect.w = volume_rect.w;
+    filled_volume_rect.h = 0;
+    filled_volume_rect.x = volume_rect.x;
+    filled_volume_rect.y = volume_rect.y + volume_rect.h;
+    SDL_Rect volume_marker_rect;
+    volume_marker_rect.w = filled_volume_rect.w;
+    volume_marker_rect.h = filled_volume_rect.w;
+    volume_marker_rect.x = filled_volume_rect.x;
+    volume_marker_rect.y = filled_volume_rect.y;
+    float percent_volume = 0.0;
 
     bool quit = false;
     while (!quit)
@@ -533,13 +569,20 @@ int main(int argc, char *argv[])
                     else if (on_button(&play_rect, &mouse)) { signal = Mouse_Signal::CLICKED_PLAY; }
                     else if (on_button(&pause_rect, &mouse)) { signal = Mouse_Signal::CLICKED_PAUSE; }
                     else if (on_button(&text_box_rect, &mouse)) { signal = Mouse_Signal::CLICKED_TEXT_BOX; }
-                    else if (on_button(&time_marker_rect, &mouse)) { signal = Mouse_Signal::CLICKED_TIME_MARKER; }
+                    else if (on_button(&time_marker_rect, &mouse)) 
+                    { 
+                        signal = Mouse_Signal::CLICKED_TIME_MARKER; 
+                    }
+                    else if (on_button(&volume_marker_rect, &mouse)) 
+                    { 
+                        signal = Mouse_Signal::CLICKED_VOLUME_MARKER; 
+                    }
                     else { signal = Mouse_Signal::CLICKED_BACKGROUND; }
-
                     process_mouse_event(signal);
                     break;
                 case SDL_MOUSEBUTTONUP:
-                    if (MARKER_SELECTED) { MARKER_SELECTED = false; }
+                    if (TIME_MARKER_SELECTED) { TIME_MARKER_SELECTED = false; }
+                    if (VOLUME_MARKER_SELECTED) { VOLUME_MARKER_SELECTED = false; }
                     break;
                 case SDL_TEXTINPUT:
                     if (APP_STATE == State::TYPING) { WAVE_PATH += sdl_event.text.text; }
@@ -548,6 +591,10 @@ int main(int argc, char *argv[])
                     if (sdl_event.key.keysym.sym == SDLK_BACKSPACE) 
                     { 
                         if (WAVE_PATH.length() > 0) { WAVE_PATH.pop_back(); }
+                    }
+                    if (sdl_event.key.keysym.sym == SDLK_RETURN) 
+                    { 
+                        process_mouse_event(Mouse_Signal::CLICKED_LOAD);
                     }
                     break;
             }
@@ -579,17 +626,29 @@ int main(int argc, char *argv[])
                 close_app();
                 exit(1);
             }
+
+            cursor.length = wave_text_rect.h;
+            cursor.p1.x = wave_text_rect.x + wave_text_rect.w + TEXT_DISPLAY_BUFFER;
+            cursor.p1.y = wave_text_rect.y;
+            cursor.p2.x = cursor.p1.x;
+            cursor.p2.y = wave_text_rect.y + wave_text_rect.h;
+
             SDL_RenderCopy(RENDERER, wave_texture, nullptr, &wave_text_rect);
             SDL_DestroyTexture(wave_texture);
         }
 
-        if (MARKER_SELECTED)
+        if (APP_STATE == State::TYPING) 
+        {
+            SDL_RenderDrawLine(RENDERER, cursor.p1.x, cursor.p1.y, cursor.p2.x, cursor.p2.y);
+        }
+
+        if (TIME_MARKER_SELECTED)
         {
             if (mouse.x > time_bar_rect.x && 
                 mouse.x < time_bar_rect.x + time_bar_rect.w)
             {
                 float new_width = (float)(mouse.x - filled_time_bar_rect.x);
-                float percent_completed = new_width / time_bar_rect.w;
+                percent_completed = new_width / time_bar_rect.w;
                 float new_time = percent_completed * total_time;
                 update_audio_pos(new_time);
             } 
@@ -640,6 +699,28 @@ int main(int argc, char *argv[])
         }
         SDL_RenderCopy(RENDERER, total_time_texture, nullptr, &total_time_text_rect);
         SDL_DestroyTexture(total_time_texture);
+
+        // volume bar
+        if (VOLUME_MARKER_SELECTED)
+        {
+            if (mouse.y > volume_rect.y && 
+                mouse.y < volume_rect.y + volume_rect.h)
+            {
+                float new_height = (float)(volume_rect.h - (mouse.y - volume_rect.y));
+                percent_volume = new_height / volume_rect.h;
+
+                SDL_LockAudioDevice(DEVICE_ID);
+                VOLUME = (int)(percent_volume * MAX_VOLUME);
+                SDL_UnlockAudioDevice(DEVICE_ID);
+            } 
+        }
+        percent_volume = (float)VOLUME / (float)MAX_VOLUME;
+        filled_volume_rect.h = -1 * (int)(percent_volume * volume_rect.h);
+        draw_rect(&filled_volume_rect, nullptr, &DARK_RED, RENDERER);
+        draw_rect(&volume_rect, &WHITE, nullptr, RENDERER);
+        volume_marker_rect.y = filled_volume_rect.y + filled_volume_rect.h - (volume_marker_rect.h / 2);
+        draw_button(&volume_marker_rect, &mouse, WHITE, DARK_GRAY, WHITE, RENDERER);
+
 
         SDL_RenderPresent(RENDERER);
     }
