@@ -500,6 +500,11 @@ int main(int argc, char *argv[])
     wave_text_rect.y = text_box_rect.y + TEXT_DISPLAY_BUFFER;
 
     Line cursor;
+    cursor.length = text_box_rect.h - TEXT_DISPLAY_BUFFER * 2;
+    cursor.p1.x = wave_text_rect.x + TEXT_DISPLAY_BUFFER;
+    cursor.p1.y = wave_text_rect.y;
+    cursor.p2.x = cursor.p1.x;
+    cursor.p2.y = wave_text_rect.y + cursor.length;
 
     SDL_Rect time_bar_rect;
     time_bar_rect.w = play_rect.w + pause_rect.w + BUTTON_GAP;
