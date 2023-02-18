@@ -125,3 +125,30 @@ SDL_Texture* graphics_create_texture(SDL_Rect* rect, std::string text, SDL_Color
 
     return texture;
 }
+
+bool graphics_blink()
+{
+    int period = 30;
+    static int pause = 15;
+    static int count = 0;
+
+    if (count++ % period == 0)
+    {
+        if (pause > 0)
+        {
+            count--;
+            pause--;
+        }
+        else
+        {
+            pause = 15;
+        }
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+

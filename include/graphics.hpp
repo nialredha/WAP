@@ -52,3 +52,6 @@ bool graphics_on_button(const SDL_Rect* rect, const Position* mouse);
 
 SDL_Texture* graphics_create_texture(SDL_Rect* rect, std::string text, SDL_Color color, TTF_Font* font, 
                                     SDL_Renderer* rend);
+
+bool graphics_blink();
+

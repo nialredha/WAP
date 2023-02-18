@@ -47,43 +47,7 @@ SDL_Color white = {255, 255, 255, 255};
 SDL_Color dark_red = {139, 0, 0, 255};
 SDL_Color dark_gray = {37, 37, 38, 255};
 
-void audio_callback(void* userdata, Uint8* stream, int len)
-{
-    memset(stream, 0, len);
-
-    if (audio.current_len == 0) { return; }
-
-    if (len > audio.current_len) { len = audio.current_len; }
-
-    SDL_MixAudioFormat(stream, audio.current_pos, audio.wave_spec.format, len, audio.volume);
-    
-    audio.current_pos += len;
-    audio.current_len -= len;
-
-    if (audio.current_len == 0)
-    {
-        audio.current_pos = audio.wave_buff;
-        audio.current_len = audio.wave_len;
-
-        audio_play(false, &audio);
-        app_state = State::IDLE;
-    }
-}
-
-void close_app()
-{
-    SDL_DestroyRenderer(graphics.renderer);
-    SDL_DestroyWindow(graphics.window);
-
-    TTF_CloseFont(graphics.large_font);
-    TTF_CloseFont(graphics.small_font);
-
-    SDL_CloseAudioDevice(audio.device_id);
-    SDL_FreeWAV(audio.wave_buff);
-
-    TTF_Quit();
-    SDL_Quit();
-}
+void close_app();
 
 int main(int argc, char *argv[]) 
 {
@@ -356,7 +320,11 @@ int main(int argc, char *argv[])
                 signal = Mouse_Signal::NONE;
                 break;
             case Mouse_Signal::TYPE:
-                SDL_RenderDrawLine(graphics.renderer, cursor.p1.x, cursor.p1.y, cursor.p2.x, cursor.p2.y);
+                // std::cout << animate_cursor() << std::endl;
+                if (graphics_blink())
+                {
+                    SDL_RenderDrawLine(graphics.renderer, cursor.p1.x, cursor.p1.y, cursor.p2.x, cursor.p2.y);
+                }
                 break;
             case Mouse_Signal::SCRUB:
                 if (mouse.x > time_bar_rect.x && 
@@ -380,8 +348,11 @@ int main(int argc, char *argv[])
                 } 
                 break;
             case Mouse_Signal::UNFOCUS:
-                app_state = State::IDLE;
-                signal = Mouse_Signal::NONE;
+                if (app_state != State::PLAYING)
+                {
+                    app_state = State::IDLE;
+                    signal = Mouse_Signal::NONE;
+                }
                 break;
         }
 
@@ -485,4 +456,43 @@ int main(int argc, char *argv[])
     close_app();
     return 0;
 }
+
+void audio_callback(void* userdata, Uint8* stream, int len)
+{
+    memset(stream, 0, len);
+
+    if (audio.current_len == 0) { return; }
+
+    if (len > audio.current_len) { len = audio.current_len; }
+
+    SDL_MixAudioFormat(stream, audio.current_pos, audio.wave_spec.format, len, audio.volume);
+    
+    audio.current_pos += len;
+    audio.current_len -= len;
+
+    if (audio.current_len == 0)
+    {
+        audio.current_pos = audio.wave_buff;
+        audio.current_len = audio.wave_len;
+
+        audio_play(false, &audio);
+        app_state = State::IDLE;
+    }
+}
+
+void close_app()
+{
+    SDL_DestroyRenderer(graphics.renderer);
+    SDL_DestroyWindow(graphics.window);
+
+    TTF_CloseFont(graphics.large_font);
+    TTF_CloseFont(graphics.small_font);
+
+    SDL_CloseAudioDevice(audio.device_id);
+    SDL_FreeWAV(audio.wave_buff);
+
+    TTF_Quit();
+    SDL_Quit();
+}
+
 
