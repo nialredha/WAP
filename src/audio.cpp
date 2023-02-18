@@ -59,6 +59,12 @@ void audio_update_pos(float time, Audio *a)
 
     SDL_LockAudioDevice(a->device_id);
 
+    if (a->wave_buff == nullptr)
+    {
+        std::cerr << "Audio.cpp. Error on line " << __LINE__ << ": passed a null pointer" << std::endl;
+        exit(1);
+    }
+
     int bytes_per_sample = (int)SDL_AUDIO_BITSIZE(a->wave_spec.format) / 8;
     float samples_per_byte = 0;
     if (bytes_per_sample != 0)
@@ -80,6 +86,12 @@ void audio_update_pos(float time, Audio *a)
 float audio_curr_time(Audio *a)
 {
     SDL_LockAudioDevice(a->device_id);
+
+    if (a->current_pos == nullptr | a->wave_buff == nullptr)
+    {
+        std::cerr << "Audio.cpp. Error on line " << __LINE__ << ": passed a null pointer" << std::endl;
+        exit(1);
+    }
 
     int bytes_per_sample = (int)SDL_AUDIO_BITSIZE(a->wave_spec.format) / 8;
     float samples_per_byte = 0;
@@ -118,4 +130,25 @@ float audio_total_time(Audio *a)
     }
 
     return total_time;
+}
+
+bool audio_at_end(Audio *a)
+{
+    SDL_LockAudioDevice(a->device_id);
+    if (a->current_pos == nullptr | a->wave_buff == nullptr)
+    {
+        std::cerr << "Audio.cpp. Error on line " << __LINE__ << ": passed a null pointer" << std::endl;
+        exit(1);
+    }
+    if (a->current_pos == a->wave_buff + a->wave_len)
+    {
+        a->current_pos = a->wave_buff;
+        a->current_len = a->wave_len;
+
+        SDL_UnlockAudioDevice(a->device_id);
+        return true;
+    }
+    SDL_UnlockAudioDevice(a->device_id);
+    return false;
+
 }

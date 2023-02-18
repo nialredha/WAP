@@ -164,7 +164,6 @@ int main(int argc, char *argv[])
     SDL_Rect total_time_text_rect;
     total_time_text_rect.y = time_bar_rect.y + time_bar_rect.h;
 
-
     SDL_Rect volume_rect;
     volume_rect.x = pause_rect.x + pause_rect.w + BUTTON_GAP;
     volume_rect.y = pause_rect.y;
@@ -182,15 +181,13 @@ int main(int argc, char *argv[])
     volume_marker_rect.y = filled_volume_rect.y;
     float percent_volume = 0.0;
 
-
     // clear the screen to dark gray
     SDL_SetRenderDrawColor(graphics.renderer, dark_gray.r, dark_gray.g, dark_gray.b, dark_gray.a);
     SDL_RenderClear(graphics.renderer);
-
     
-	if (argc > 2)
-	{
-		std::cerr << "ERROR: too many arguments provided." << std::endl;
+    if (argc > 2)
+    {
+        std::cerr << "ERROR: too many arguments provided." << std::endl;
         close_app();
         exit(1);
 	} 
@@ -245,7 +242,6 @@ int main(int argc, char *argv[])
                     { 
                         signal = Mouse_Signal::UNFOCUS; 
                     }
-                    // process_mouse_event(signal);
                     break;
                 case SDL_MOUSEBUTTONUP:
                     if (signal == Mouse_Signal::SCRUB | signal == Mouse_Signal::MIX)
@@ -271,7 +267,6 @@ int main(int argc, char *argv[])
                                 }
                                 break;
                             case SDLK_RETURN:
-                                // process_mouse_event(Mouse_Signal::LOAD);
                                 signal = Mouse_Signal::LOAD;
                                 break;
                         }
@@ -320,7 +315,6 @@ int main(int argc, char *argv[])
                 signal = Mouse_Signal::NONE;
                 break;
             case Mouse_Signal::TYPE:
-                // std::cout << animate_cursor() << std::endl;
                 if (graphics_blink())
                 {
                     SDL_RenderDrawLine(graphics.renderer, cursor.p1.x, cursor.p1.y, cursor.p2.x, cursor.p2.y);
@@ -353,6 +347,28 @@ int main(int argc, char *argv[])
                     app_state = State::IDLE;
                     signal = Mouse_Signal::NONE;
                 }
+                break;
+        }
+
+        switch (app_state)
+        {
+            case State::IDLE:
+                curr_time = audio_curr_time(&audio);
+                percent_completed = curr_time / total_time; 
+                break;
+            case State::PLAYING:
+                curr_time = audio_curr_time(&audio);
+                percent_completed = curr_time / total_time; 
+                
+                // move audio back to start and pause
+                if (audio_at_end(&audio))
+                {
+                    signal = Mouse_Signal::PAUSE;
+                }
+                break;
+            case State::UNINITIALIZED:
+                curr_time = 0.0;
+                percent_completed = 0.0; 
                 break;
         }
 
@@ -395,17 +411,6 @@ int main(int argc, char *argv[])
         }
 
         // time bar
-        if (app_state != State::UNINITIALIZED)
-        { 
-            curr_time = audio_curr_time(&audio);
-            percent_completed = curr_time / total_time; 
-        }
-        else 
-        { 
-            curr_time = 0.0;
-            percent_completed = 0.0; 
-        }
-
         filled_time_bar_rect.w = (int)(percent_completed * time_bar_rect.w);
         graphics_draw_rect(&filled_time_bar_rect, nullptr, &dark_red, graphics.renderer);
         graphics_draw_rect(&time_bar_rect, &white, nullptr, graphics.renderer);
@@ -449,7 +454,6 @@ int main(int argc, char *argv[])
         volume_marker_rect.y = filled_volume_rect.y + filled_volume_rect.h - (volume_marker_rect.h / 2);
         graphics_draw_button(&volume_marker_rect, &mouse, white, dark_gray, white, graphics.renderer);
 
-
         SDL_RenderPresent(graphics.renderer);
     }
 
@@ -469,15 +473,6 @@ void audio_callback(void* userdata, Uint8* stream, int len)
     
     audio.current_pos += len;
     audio.current_len -= len;
-
-    if (audio.current_len == 0)
-    {
-        audio.current_pos = audio.wave_buff;
-        audio.current_len = audio.wave_len;
-
-        audio_play(false, &audio);
-        app_state = State::IDLE;
-    }
 }
 
 void close_app()

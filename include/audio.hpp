@@ -31,3 +31,5 @@ void audio_update_pos(float time, Audio *a);
 float audio_curr_time(Audio *a);
 
 float audio_total_time(Audio *a);
+
+bool audio_at_end(Audio *a);
