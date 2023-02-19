@@ -348,6 +348,8 @@ int main(int argc, char *argv[])
                     signal = Mouse_Signal::NONE;
                 }
                 break;
+            case Mouse_Signal::NONE:
+                break;
         }
 
         switch (app_state)

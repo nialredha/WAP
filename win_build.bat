@@ -6,8 +6,11 @@ set SDL_AUDIODRIVER=dsound
 if not exist "build\" mkdir build\
 cd build/
 
-set INCLUDES=/I ..\include /I C:\SDL2\include 
+set FLAGS=/EHsc
+set INCLUDES=/I ..\src /I C:\SDL2\include 
+set SDL_PATH=C:\SDL2\lib\x64\
+set LIBS=user32.lib shell32.lib SDL2.lib SDL2main.lib SDL2_ttf.lib 
 
-cl %INCLUDES% /EHsc ..\src\main.cpp ..\src\audio.cpp ..\src\graphics.cpp /link /LIBPATH:C:\SDL2\lib\x64\ user32.lib SDL2main.lib SDL2.lib SDL2_ttf.lib shell32.lib /SUBSYSTEM:CONSOLE 
+cl %FLAGS% %INCLUDES% ..\src\main.cpp ..\src\audio.cpp ..\src\graphics.cpp /link /LIBPATH:%SDL_PATH% %LIBS% /SUBSYSTEM:CONSOLE
 
 cd ..

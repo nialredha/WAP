@@ -5,7 +5,4 @@ mkdir -p lib
 
 cd build/
 
-clang++ -c ../src/SoundSim.cpp ../src/WaveIO.cpp -I ../include
-ar cr ../lib/libsound.a SoundSim.o WaveIO.o
-
-clang++ ../src/main.cpp -lSound -lSDL2 -lSDL2_image -I ../include -L ../lib -o Audio
+clang++ ../src/main.cpp ../src/audio.cpp ../src/graphics.cpp -lSDL2 -lSDL2_image -l SDL2_ttf -I ../src -o wap 
