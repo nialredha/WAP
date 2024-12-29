@@ -2,6 +2,8 @@
 
 Enjoy this original, state-of-the-art music player.
 
+![WAP](https://github.com/nialredha/WAP/blob/master/assets/WAP.png)
+
 ## Build and Run
 
 WINDOWS (x64)
